@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "target": "es2020",
+        "lib": ["es2020"],
+        "allowJs": true,
+        "noEmit": true,
+        "strict": true,
+        "esModuleInterop": true,
+        "sourceMap": false,
+        "removeComments": true,
+				"noImplicitAny": false 
+    },
+    "exclude": [
+        "_agent.js"
+    ]
+}
