@@ -1,57 +1,21 @@
 /**
  * ========================================================================
- * FRIDA UNIFIED BYPASS SCRIPT - ULTIMATE EDITION v2
+ * FRIDA UNIFIED BYPASS SCRIPT
  * ========================================================================
- * Integrating techniques from:
- * - @fdciabdul    - frida-multiple-bypass (codeshare.frida.re)
- * - @akabe1       - frida-multiple-unpinning (Fabric SDK PinningTrustManager)
- * - @pcipolloni   - universal-android-ssl-pinning-bypass
- * - @TheDauntless - disable-flutter-tls-v1 (x86/x64 Flutter patterns,
- *                   Interceptor.replace approach, r-x range scanning)
- * - @Eltion       - instagram-ssl-pinning-bypass & tiktok-ssl-pinning-bypass
- *                   & facebook-ssl-pinning-bypass (libliger.so, libliger-native.so,
- *                   libcoldstart.so proxygen hooks, libsscronet.so hooks)
- * - @poseidontor  - android-vpn-detection-bypass (ConnectivityManager,
- *                   NetworkCapabilities, NetworkInterface hooks)
- * - @dzonerzy    - fridantiroot (BufferedReader.readLine build.prop patch)
- * - @jerry       - ultimate-combined-bypass (process termination prevention,
- *                   NetworkSecurityPolicy.isCleartextTrafficPermitted)
- * - @ub3rsick    - rootbeer-root-detection-bypass (RootBeer library hooks)
- * - @x90nopslide - anti-frida-bypass (fgets/strstr hooks to hide Frida/Xposed)
- * - @pimterry    - httptoolkit/frida-interception-and-unpinning
- *                   (TrustedCertificateIndex injection, AOSP OkHttp, Conscrypt CT,
- *                   CordovaServerTrust, proxy detection bypass, CertificateException
- *                   auto-patcher)
- * ========================================================================
- * v2 ADDITIONS (NEW in this version):
- * + FIX: SSLContext.init dual-hook conflict resolved (was overriding itself)
- * + X509TrustManagerExtensions bypass (Android 7+ additional cert checks)
- * + Conscrypt checkTrusted internal method bypass
- * + ConscryptFileDescriptorSocket.verifyCertificateChain
- * + AbstractConscryptSocket verification bypass
- * + NativeCrypto.SSL_do_handshake alert suppression
- * + libcronet.so native hooks (Google services Cronet networking)
- * + libconscrypt_jni.so native hooks (Conscrypt JNI layer)
- * + SSL_CTX_set_cert_verify_callback (BoringSSL additional callback)
- * + Samsung Knox / Samsung Internet specific bypasses
- * + Unity Ads / Unity Services specific class hooks
- * + AppsFlyer SDK specific pinning bypass
- * + Firebase / Google Play Services additional hooks
- * + Volley / HurlStack SSL bypass
- * + OkHttp3 RealConnection handshake intercept
- * + Android 14+ credential manager related hooks
- * + Conscrypt ConscryptFileDescriptorSocket + ConscryptEngineSocket
- * + Improved android_dlopen_ext watcher (covers libcronet, libconscrypt_jni)
- * + TrustManagerImpl checkTrusted (all overloads, all namespaces)
- * + SafetyNet / Play Integrity attestation bypass
- * + Comprehensive X509ExtendedTrustManager bypass
- * + SSLEngine-based verification bypass
- * + OkHttp3 internal.platform.Platform bypass
- * ========================================================================
- * Original script by @Figueron for his Bachelor's Thesis.
- * v2 enhancements for comprehensive traffic analysis.
- * - jfiguerasmarquez@gmail.com
- * - https://github.com/F1gueron
+ *
+ * Comprehensive Frida script for Android traffic analysis research.
+ * Bypasses SSL pinning, root detection, emulator detection, and
+ * anti-instrumentation checks across 40+ libraries and frameworks.
+ *
+ * Credits (techniques integrated from):
+ *   @fdciabdul, @akabe1, @pcipolloni, @TheDauntless, @Eltion,
+ *   @poseidontor, @dzonerzy, @jerry, @ub3rsick, @x90nopslide,
+ *   @pimterry (httptoolkit/frida-interception-and-unpinning)
+ *
+ * Developed by @Figueron for his Bachelor's Thesis.
+ *   - jfiguerasmarquez@gmail.com
+ *   - https://github.com/F1gueron
+ *
  * ========================================================================
  */
 
@@ -104,7 +68,7 @@ var caFile = "/data/local/tmp/cacert.crt";
 
 console.log("");
 console.log("======================================================");
-console.log("[*] FRIDA UNIFIED BYPASS v2 by @Figueron - INITIALIZING...");
+console.log("[*] FRIDA UNIFIED BYPASS by @Figueron - INITIALIZING...");
 console.log("======================================================");
 console.log("[*] Using " + caFile + " as file for custom CA injection");
 console.log("[*] To change this, modify caFile in this script");
@@ -182,7 +146,7 @@ function overloader(errStr, targetClass, targetFunc, retType) {
     }
 }
 
-// [NEW] Helper: safely hook all overloads of a method
+// Safely hook all overloads of a method
 function hookAllOverloads(className, methodName, returnHandler) {
     try {
         var cls = Java.use(className);
@@ -265,8 +229,6 @@ Java.perform(function () {
 // ========================================================================
 // BYPASS ROOT DETECTION
 // ========================================================================
-
-
 setTimeout(function () {
     console.log("[*] Bypassing Root Detection...");
 
@@ -291,7 +253,7 @@ setTimeout(function () {
         }
     }
 
-    // [NEW] Hook stat/lstat to hide root files at native level
+    // Hook stat/lstat to hide root files at native level
     ['stat', 'lstat', 'stat64', 'lstat64', 'fstatat64'].forEach(function (funcName) {
         try {
             var addr = Module.findExportByName('libc.so', funcName);
@@ -315,7 +277,7 @@ setTimeout(function () {
         } catch (e) {}
     });
 
-    // [NEW] Hook open/openat to prevent reading root-related files
+    // Hook open/openat to prevent reading root-related files
     try {
         var openAddr = Module.findExportByName('libc.so', 'open');
         if (openAddr) {
@@ -464,7 +426,7 @@ setTimeout(function () {
                 };
         } catch (e) {}
 
-        // Patch BufferedReader.readLine to hide root indicators in build.prop (@dzonerzy)
+        // Patch BufferedReader.readLine to hide root indicators in build.prop
         try {
             var BufferedReader = Java.use("java.io.BufferedReader");
             var origReadLine = BufferedReader.readLine.overload();
@@ -479,7 +441,7 @@ setTimeout(function () {
             console.log("[+] BufferedReader.readLine hooked (fixed)");
         } catch (e) {}
 
-        // Prevent app from killing itself on detection (@jerry)
+        // Prevent app from killing itself on detection
         try {
             Java.use("android.os.Process").killProcess.implementation = function (pid) {
                 console.log("[+] Blocked Process.killProcess(" + pid + ")");
@@ -498,7 +460,7 @@ setTimeout(function () {
             };
         } catch (e) {}
 
-        // RootBeer library bypass (@ub3rsick)
+        // RootBeer library bypass
         console.log("[*] Root detection: hooking RootBeer...");
         try {
             var RootBeer = Java.use('com.scottyab.rootbeer.RootBeer');
@@ -537,8 +499,6 @@ setTimeout(function () {
     });
 }, 1500);
 
-
-
 // ========================================================================
 // SSL PINNING BYPASS
 // ========================================================================
@@ -547,8 +507,8 @@ setTimeout(function () {
     Java.perform(function () {
         console.log("[*] Bypassing SSL Pinning...");
 
-        // -- TrustedCertificateIndex CA injection (credit: @pimterry / httptoolkit) --
-        // Adds the proxy CA to the system trust store at runtime
+        // -- TrustedCertificateIndex CA injection --
+        
         var caCert = null;
         try {
             var cf = Java.use("java.security.cert.CertificateFactory").getInstance("X.509");
@@ -588,8 +548,8 @@ setTimeout(function () {
             console.log("[-] TrustedCertificateIndex injection skipped (CA not found)");
         }
 
-        // -- [FIX] Unified SSLContext.init bypass --
-        // v1 had TWO hooks that conflicted. Now unified: proxy CA with permissive fallback.
+        // -- Unified SSLContext.init bypass --
+        
         try {
             var CertificateFactory = Java.use("java.security.cert.CertificateFactory");
             var KeyStore = Java.use("java.security.KeyStore");
@@ -616,7 +576,6 @@ setTimeout(function () {
                 console.log("[-] Proxy CA not loaded, using permissive-only TrustManager");
             }
 
-            // Permissive fallback TrustManager (accepts everything)
             var PermissiveTM = Java.registerClass({
                 name: 'dev.asd.test.TrustManager',
                 implements: [X509TrustManager],
@@ -631,7 +590,7 @@ setTimeout(function () {
                 '[Ljavax.net.ssl.KeyManager;', '[Ljavax.net.ssl.TrustManager;', 'java.security.SecureRandom'
             ).implementation = function (km, tm, sr) {
                 console.log('[+] SSLContext.init intercepted');
-                // Prefer proxy CA TrustManager, fall back to permissive
+                
                 var trustManagers;
                 if (proxyTmf !== null) {
                     trustManagers = proxyTmf.getTrustManagers();
@@ -706,7 +665,7 @@ setTimeout(function () {
         } catch (err) {}
         console.log("[*] OkHttp3 hooks done, continuing...");
 
-        // -- [NEW] OkHttp3 internal.connection.RealConnection handshake --
+        // -- OkHttp3 RealConnection
         try {
             Java.use('okhttp3.internal.connection.RealConnection')
                 .connectTls.implementation = function (connectionSpecSelector) {
@@ -715,8 +674,8 @@ setTimeout(function () {
                 };
         } catch (err) {}
 
-        // -- [NEW] OkHttp3 internal.platform.Platform --
-        // Intercepts platform-level certificate verification
+        // -- OkHttp3 Platform
+        
         try {
             var platform = Java.use('okhttp3.internal.platform.Platform');
             platform.trustManager.implementation = function (factory) {
@@ -777,8 +736,7 @@ setTimeout(function () {
             });
         } catch (e) {}
 
-        // -- [NEW] Google Play Services pinning via common obfuscated classes --
-        // Handled by UNIFIED CLASS SCANNER below (single-pass optimization)
+        // -- Google Play Services pinning via common obfuscated classes --
 
         // -- TrustKit --
         try {
@@ -833,8 +791,8 @@ setTimeout(function () {
                 };
         } catch (err) {}
 
-        // -- [NEW] TrustManagerImpl.checkTrusted (internal method, all overloads) --
-        // This is the core method that checkServerTrusted delegates to on newer Android
+        // -- TrustManagerImpl.checkTrusted (internal method, all overloads) --
+        // Core internal method on Android 7+
         console.log("[*] Hooking TrustManagerImpl variants...");
         var tmImplClasses = [
             'com.android.org.conscrypt.TrustManagerImpl',
@@ -856,8 +814,8 @@ setTimeout(function () {
             } catch (e) {}
         });
 
-        // -- [NEW] TrustManagerImpl.checkServerTrusted with Socket/SSLEngine overloads --
-        // Android 7+ adds overloads with Socket and SSLEngine parameters
+        // -- TrustManagerImpl.checkServerTrusted with Socket/SSLEngine overloads --
+        
         tmImplClasses.forEach(function (tmClass) {
             // Socket overload
             try {
@@ -879,8 +837,8 @@ setTimeout(function () {
             } catch (e) {}
         });
 
-        // -- [NEW] X509TrustManagerExtensions bypass --
-        // Android 7+ uses this for additional network security checks
+        // -- X509TrustManagerExtensions bypass --
+        // Android 7+ additional cert checks
         try {
             Java.use('android.net.http.X509TrustManagerExtensions')
                 .checkServerTrusted.overload('[Ljava.security.cert.X509Certificate;', 'java.lang.String', 'java.lang.String')
@@ -890,8 +848,7 @@ setTimeout(function () {
                 };
         } catch (err) {}
 
-        // -- [NEW] X509ExtendedTrustManager bypass --
-        // Handled by UNIFIED CLASS SCANNER below (single-pass optimization)
+        // -- X509ExtendedTrustManager bypass --
 
         // -- Standalone Conscrypt library (org.conscrypt.*) --
         try {
@@ -931,8 +888,8 @@ setTimeout(function () {
             };
         } catch (err) {}
 
-        // -- [NEW] ConscryptFileDescriptorSocket.verifyCertificateChain --
-        // This is the actual socket implementation used on many Android versions
+        // -- ConscryptFileDescriptorSocket.verifyCertificateChain --
+        
         console.log("[*] Hooking Conscrypt socket implementations...");
         var conscryptSocketClasses = [
             'com.android.org.conscrypt.ConscryptFileDescriptorSocket',
@@ -948,7 +905,7 @@ setTimeout(function () {
             } catch (e) {}
         });
 
-        // -- [NEW] AbstractConscryptSocket verification --
+        // -- AbstractConscryptSocket verification --
         var abstractConscryptClasses = [
             'com.android.org.conscrypt.AbstractConscryptSocket',
             'org.conscrypt.AbstractConscryptSocket',
@@ -1012,7 +969,7 @@ setTimeout(function () {
             };
         } catch (err) {}
 
-        // -- Fabric SDK PinningTrustManager (@akabe1) --
+        // -- Fabric SDK PinningTrustManager --
         try {
             Java.use('io.fabric.sdk.android.services.network.PinningTrustManager').checkServerTrusted.implementation = function () {
                 console.log('[+] Fabric SDK PinningTrustManager bypassed');
@@ -1130,7 +1087,7 @@ setTimeout(function () {
             sqv.verify.overload('java.lang.String', 'javax.net.ssl.SSLSession').implementation = function (a, b) { console.log('[+] Squareup Verifier {2}: ' + a); return true; };
         } catch (err) {}
 
-        // -- AOSP bundled OkHttp (credit: @pimterry / httptoolkit) --
+        // -- AOSP bundled OkHttp --
         try {
             var aospHV = Java.use('com.android.okhttp.internal.tls.OkHostnameVerifier');
             aospHV.verify.overload('java.lang.String', 'javax.net.ssl.SSLSession').implementation = function (a, b) {
@@ -1158,7 +1115,7 @@ setTimeout(function () {
             };
         } catch (err) {}
 
-        // -- Conscrypt CertificateTransparency (credit: @pimterry / httptoolkit) --
+        // -- Conscrypt CertificateTransparency --
         console.log("[*] Hooking Certificate Transparency...");
         try {
             Java.use('com.android.org.conscrypt.ct.CertificateTransparency').checkCT.implementation = function () {
@@ -1166,7 +1123,7 @@ setTimeout(function () {
             };
         } catch (err) {}
 
-        // -- [NEW] Conscrypt CTVerifier and CTPolicy --
+        // -- Conscrypt CT Verification --
         var ctClasses = [
             'com.android.org.conscrypt.ct.CTVerifier',
             'org.conscrypt.ct.CTVerifier',
@@ -1289,7 +1246,7 @@ setTimeout(function () {
             console.log("[+] Cronet hooks installed");
         } catch (err) {}
 
-        // -- [NEW] Additional Cronet bypass (NativeCronetEngineBuilderImpl) --
+        // -- NativeCronetEngineBuilderImpl --
         try {
             Java.use("org.chromium.net.impl.NativeCronetEngineBuilderImpl")
                 .addPublicKeyPins.implementation = function () {
@@ -1306,7 +1263,7 @@ setTimeout(function () {
                 };
         } catch (err) {}
 
-        // -- [NEW] Cronet CronetUrlRequest pin verification --
+        // -- CronetUrlRequest pin check --
         try {
             var CronetUrlRequest = Java.use("org.chromium.net.impl.CronetUrlRequest");
             if (CronetUrlRequest.onPinCheckComplete) {
@@ -1328,8 +1285,8 @@ setTimeout(function () {
                 };
         } catch (e) {}
 
-        // -- [NEW] NetworkSecurityConfig.getConfigForHostname --
-        // Prevents per-domain pin configurations from taking effect
+        // -- NetworkSecurityConfig.getTrustAnchors --
+        
         try {
             Java.use("android.security.net.config.NetworkSecurityConfig")
                 .getTrustAnchors.implementation = function () {
@@ -1338,7 +1295,7 @@ setTimeout(function () {
                 };
         } catch (e) {}
 
-        // -- NetworkSecurityPolicy (@jerry) --
+        // -- NetworkSecurityPolicy --
         try {
             Java.use("android.security.net.config.NetworkSecurityPolicy")
                 .isCleartextTrafficPermitted.overload()
@@ -1373,7 +1330,7 @@ setTimeout(function () {
                 };
         } catch (e) {}
 
-        // -- [NEW] NetworkSecurityTrustManager additional overloads --
+        // -- NetworkSecurityTrustManager (3-arg) --
         try {
             Java.use("android.security.net.config.NetworkSecurityTrustManager")
                 .checkServerTrusted.overload('[Ljava.security.cert.X509Certificate;', 'java.lang.String', 'java.lang.String')
@@ -1383,7 +1340,7 @@ setTimeout(function () {
                 };
         } catch (e) {}
 
-        // -- [NEW] RootTrustManager (Android 14+) --
+        // -- RootTrustManager --
         try {
             Java.use("android.security.net.config.RootTrustManager")
                 .checkServerTrusted.overload('[Ljava.security.cert.X509Certificate;', 'java.lang.String')
@@ -1440,7 +1397,7 @@ setTimeout(function () {
                 };
         } catch (e) {}
 
-        // -- [NEW] Volley / HurlStack SSL bypass --
+        // -- Volley / HurlStack --
         try {
             Java.use('com.android.volley.toolbox.HurlStack')
                 .createConnection.implementation = function (url) {
@@ -1449,7 +1406,7 @@ setTimeout(function () {
                 };
         } catch (err) {}
 
-        // -- [NEW] Samsung Knox / Samsung Internet specific --
+        // -- Samsung Knox --
         console.log("[*] Hooking Samsung Knox, Unity, AppsFlyer...");
         try {
             Java.use('com.samsung.android.knox.net.vpn.KnoxVpnEngine')
@@ -1467,7 +1424,7 @@ setTimeout(function () {
             hookAllOverloads('com.samsung.android.sdk.net.SemSslPinningHelper', 'checkPins');
         } catch (err) {}
 
-        // -- [NEW] Unity Ads / Unity Services specific --
+        // -- Unity Services --
         try {
             hookAllOverloads('com.unity3d.services.core.api.Request', 'execute');
         } catch (err) {}
@@ -1478,10 +1435,7 @@ setTimeout(function () {
                 return this.makeRequest.apply(this, arguments);
             };
         } catch (err) {}
-
-        // Unity mediation adapters pinning - Handled by UNIFIED CLASS SCANNER below
-
-        // -- [NEW] AppsFlyer SDK specific pinning --
+        // -- AppsFlyer SDK --
         try {
             hookAllOverloads('com.appsflyer.internal.AFKeystoreWrapper', 'checkServerTrusted');
         } catch (err) {}
@@ -1497,10 +1451,7 @@ setTimeout(function () {
                 hookAllOverloads(cls, 'verify');
             });
         } catch (err) {}
-
-        // Broader AppsFlyer / Firebase / Crashlytics scan - Handled by UNIFIED CLASS SCANNER below
-
-        // -- [NEW] SafetyNet / Play Integrity Attestation bypass --
+        // -- SafetyNet / Play Integrity --
         try {
             Java.use('com.google.android.gms.safetynet.SafetyNetApi$AttestationResponse')
                 .getJwsResult.implementation = function () {
@@ -1559,7 +1510,7 @@ setTimeout(function () {
             console.log('[+] SSLPeerUnverifiedException auto-patcher enabled');
         } catch (err) {}
 
-        // -- Dynamic CertificateException auto-patcher (credit: @pimterry / httptoolkit) --
+        // -- Dynamic CertificateException auto-patcher --
         try {
             Java.use('java.security.cert.CertificateException').$init.overload('java.lang.String').implementation = function (reason) {
                 try {
@@ -1607,8 +1558,8 @@ setTimeout(function () {
             console.log('[+] CertificateException auto-patcher enabled');
         } catch (err) {}
 
-        // -- [NEW] SSLHandshakeException auto-patcher --
-        // Catches cases where SSLHandshakeException is thrown instead of CertificateException
+        // -- SSLHandshakeException auto-patcher --
+        
         try {
             Java.use('javax.net.ssl.SSLHandshakeException').$init.overload('java.lang.String').implementation = function (reason) {
                 try {
@@ -1691,7 +1642,7 @@ setTimeout(function () {
             };
         } catch (err) {}
 
-        // -- Cordova ServerTrust (credit: @pimterry / httptoolkit) --
+        // -- Cordova ServerTrust --
         try {
             Java.use('com.silkimen.cordovahttp.CordovaServerTrust').init.implementation = function () {
                 console.log('[+] Cordova CordovaServerTrust.init bypassed');
@@ -1725,7 +1676,7 @@ setTimeout(function () {
                 };
         } catch (err) {}
 
-        // -- [NEW] Conscrypt Platform additional overloads --
+        // -- Conscrypt Platform (additional) --
         try {
             Java.use('org.conscrypt.Platform')
                 .checkServerTrusted.overload(
@@ -1750,8 +1701,8 @@ setTimeout(function () {
                 };
         } catch (err) {}
 
-        // -- [NEW] NativeCrypto / NativeSsl hooks --
-        // These are the JNI wrappers that ultimately call into BoringSSL
+        // -- NativeCrypto / NativeSsl hooks --
+        
         console.log("[*] Hooking NativeCrypto SSL_do_handshake...");
         var nativeCryptoClasses = [
             'com.android.org.conscrypt.NativeCrypto',
@@ -1773,7 +1724,7 @@ setTimeout(function () {
                                     errStr.indexOf('SSL handshake') !== -1 ||
                                     errStr.indexOf('alert') !== -1) {
                                     console.log('[+] ' + cls + '.SSL_do_handshake certificate error suppressed');
-                                    // Return normally - the handshake will proceed
+                                    // Suppress cert error
                                     return;
                                 }
                                 throw e;
@@ -1785,9 +1736,8 @@ setTimeout(function () {
             } catch (e) {}
         });
 
-        // -- [NEW] NativeSsl.doHandshake exception suppressor --
-        // Catches CERTIFICATE_VERIFY_FAILED BEFORE it becomes a Java exception.
-        // On Android 12+ (APEX Conscrypt), native BoringSSL can fail independently.
+        // -- NativeSsl.doHandshake (Android 12+ APEX Conscrypt) --
+        
         try {
             var NativeSsl = Java.use('com.android.org.conscrypt.NativeSsl');
             NativeSsl.doHandshake.overloads.forEach(function (overload) {
@@ -1809,21 +1759,21 @@ setTimeout(function () {
             console.log('[+] com.android.org.conscrypt.NativeSsl.doHandshake hooked');
         } catch (e) {}
 
-        // -- [NEW] SSLUtils.toSSLHandshakeException interceptor (log + suppress) --
-        // This is the exact method that wraps BoringSSL errors into Java exceptions.
+        // -- SSLUtils.toSSLHandshakeException --
+        // Nullifies the BoringSSL-to-Java exception wrapper
         try {
             var SSLUtils = Java.use('com.android.org.conscrypt.SSLUtils');
             SSLUtils.toSSLHandshakeException.overloads.forEach(function (overload) {
                 overload.implementation = function () {
-                    // Just return null — callers null-check before throwing
+                    // Suppress exception creation
                     return null;
                 };
             });
             console.log('[+] SSLUtils.toSSLHandshakeException nullified');
         } catch (e) {}
 
-        // -- [NEW] SSLNullSession.getPeerCertificates hard bypass --
-        // Some stacks call this on a null session and throw SSLPeerUnverifiedException in loop.
+        // -- SSLNullSession.getPeerCertificates hard bypass --
+        
         try {
             var sslNullSessionClasses = [
                 'com.android.org.conscrypt.SSLNullSession',
@@ -1848,8 +1798,7 @@ setTimeout(function () {
             });
         } catch (e) {}
 
-        // -- [NEW] Facebook Audience Network cert pinning bypass --
-        // com.facebook.ads uses obfuscated classes under redexgen for pinning
+        // -- Facebook Audience Network pinning --
         try {
             Java.enumerateLoadedClassesSync().forEach(function (className) {
                 if (className.indexOf('com.facebook.ads') === 0 ||
@@ -1866,7 +1815,7 @@ setTimeout(function () {
                                         cls[method].overloads.forEach(function (ov) {
                                             ov.implementation = function () {
                                                 console.log('[+] Facebook pinning bypassed: ' + className + '.' + method);
-                                                // Return appropriate type
+                                                
                                                 var retType = ov.returnType ? ov.returnType.className : 'void';
                                                 if (retType === 'java.util.List') return Java.use('java.util.ArrayList').$new();
                                                 if (retType === 'boolean') return true;
@@ -1882,10 +1831,10 @@ setTimeout(function () {
         } catch (e) {}
 
         // ================================================================
-        // UNIFIED CLASS SCANNER (SINGLE PASS)
-        // Merges 7 separate enumerations into 1 for performance.
-        // Covers: GMS pinning, X509ExtendedTrustManager, Unity, AppsFlyer,
-        // Firebase/Crashlytics, dynamic pinner detection, and X509TrustManager.
+        // UNIFIED CLASS SCANNER
+        // Single-pass enumeration covering: GMS, Firebase, Crashlytics,
+        // AppsFlyer, Unity, Facebook Ads, X509TrustManager implementations,
+        // X509ExtendedTrustManager, and pinner classes by name.
         // ================================================================
         console.log('[*] Starting unified class scanner (single pass)...');
         try {
@@ -1899,7 +1848,7 @@ setTimeout(function () {
             var sdkCandidates = [];
             var tmCandidates = [];
 
-            // PHASE 1: Enumerate class names ONLY (no Java.use inside onMatch to avoid deadlocks)
+            // Phase 1: Collect class names (no Java.use here to avoid deadlocks)
             Java.enumerateLoadedClasses({
                 onMatch: function (className) {
                     scanStats.total++;
@@ -1950,7 +1899,7 @@ setTimeout(function () {
                         sdkCandidates.length + ' SDK, ' + tmCandidates.length + ' TM, ' +
                         pinnerClasses.length + ' pinner candidates');
 
-                    // PHASE 2: Process SDK candidates
+                    // Phase 2: Hook SDK pinning methods
                     sdkCandidates.forEach(function (className) {
                         try {
                             var cls = Java.use(className);
@@ -1992,7 +1941,7 @@ setTimeout(function () {
                         } catch (e) {}
                     });
 
-                    // PHASE 3: Process TrustManager candidates
+                    // Phase 3: Hook X509TrustManager implementations
                     tmCandidates.forEach(function (className) {
                         try {
                             var cls = Java.use(className);
@@ -2035,7 +1984,7 @@ setTimeout(function () {
                         } catch (e) {}
                     });
 
-                    // PHASE 4: Process pinner classes
+                    // Phase 4: Hook classes with pinning-related names
                     if (pinnerClasses.length > 0) {
                         console.log('\x1b[33m[!] Found ' + pinnerClasses.length + ' pinner classes by name:\x1b[0m');
                         pinnerClasses.forEach(function (cn) {
@@ -2199,8 +2148,6 @@ setTimeout(function () {
 // ========================================================================
 // NATIVE SSL BYPASS
 // ========================================================================
-
-// [NEW] Generic native SSL hook function - reduces code duplication
 function hookNativeSSLExports(module, moduleName) {
     var hookCount = 0;
 
@@ -2209,14 +2156,14 @@ function hookNativeSSLExports(module, moduleName) {
         { name: "SSL_set_custom_verify", handler: function (args) { args[1] = ptr(0x0); args[2] = ptr(0x0); } },
         { name: "SSL_CTX_set_verify", handler: function (args) { args[1] = ptr(0x0); if (args.length > 2) args[2] = ptr(0x0); } },
         { name: "SSL_set_verify", handler: function (args) { args[1] = ptr(0x0); } },
-        // [NEW] SSL_CTX_set_cert_verify_callback - additional BoringSSL callback
+        // SSL_CTX_set_cert_verify_callback - additional BoringSSL callback
         { name: "SSL_CTX_set_cert_verify_callback", handler: function (args) { args[1] = ptr(0x0); args[2] = ptr(0x0); } },
     ];
 
     var retvalHooks = [
         { name: "X509_verify_cert", retval: 1 },
         { name: "SSL_get_verify_result", retval: 0 },
-        // [NEW] Additional verification functions
+        // Additional verification functions
         { name: "X509_verify", retval: 1 },
         { name: "i2d_SSL_SESSION", retval: 1 },
     ];
@@ -2252,13 +2199,13 @@ function hookNativeSSLExports(module, moduleName) {
         }
     } catch (e) {}
 
-    // [NEW] Hook ssl_send_alert to suppress certificate_unknown alerts
+    // Hook ssl_send_alert to suppress certificate_unknown alerts
     try {
         var ssl_send_alert = module.getExportByName("ssl_send_alert");
         if (ssl_send_alert) {
             Interceptor.attach(ssl_send_alert, {
                 onEnter: function (args) {
-                    // args[1] = alert level, args[2] = alert description
+                    
                     // 48 = certificate_unknown, 42 = bad_certificate, 43 = unsupported_certificate
                     // 44 = certificate_revoked, 45 = certificate_expired, 46 = certificate_unknown
                     try {
@@ -2266,7 +2213,7 @@ function hookNativeSSLExports(module, moduleName) {
                         if (alertDesc === 48 || alertDesc === 42 || alertDesc === 43 ||
                             alertDesc === 44 || alertDesc === 45 || alertDesc === 46) {
                             console.log("[+] " + moduleName + ": suppressed ssl_send_alert (desc=" + alertDesc + ")");
-                            args[2] = ptr(0x0); // suppress the alert
+                            args[2] = ptr(0x0); 
                         }
                     } catch (e) {}
                 }
@@ -2314,8 +2261,6 @@ function hook_libssl() {
         console.log("[-] Error hooking libssl:", e);
     }
 }
-
-
 function hook_libboringssl() {
     try {
         var module = Process.getModuleByName("libboringssl.so");
@@ -2334,16 +2279,13 @@ function hook_libsscronet() {
 
 function hook_libliger() {
     var libNames = ["libliger.so", "libliger-native.so"];
-    console.log("Trying libliger")
     libNames.forEach(function (libName) {
         try {
             var module = Process.getModuleByName(libName);
             console.log("[+] " + libName + " (Instagram/Meta) base:", module.base);
 
-            // Apply generic SSL hooks
             hookNativeSSLExports(module, libName);
 
-            // Additionally hook Meta-specific exports
             var exports = module.enumerateExports();
             for (var i = 0; i < exports.length; i++) {
                 if (exports[i].name.indexOf("verifyWithMetrics") !== -1 ||
@@ -2362,14 +2304,11 @@ function hook_libliger() {
 
 function hook_libcoldstart() {
     try {
-        console.log("Trying libcold")
         var module = Process.getModuleByName("libcoldstart.so");
         console.log("[+] libcoldstart.so (Facebook) base:", module.base);
 
-        // Apply generic SSL hooks
         hookNativeSSLExports(module, "libcoldstart");
 
-        // Additionally hook Facebook-specific exports
         var exports = module.enumerateExports();
         for (var i = 0; i < exports.length; i++) {
             if (exports[i].name.indexOf("verifyWithMetrics") !== -1 ||
@@ -2385,15 +2324,13 @@ function hook_libcoldstart() {
     } catch (e) {}
 }
 
-// -- [NEW] libcronet.so hooks (Google services Cronet networking) --
+// -- libcronet.so hooks (Google services Cronet networking) --
 function hook_libcronet() {
     try {
-        console.log("Trying libcronet")
         var module = Process.getModuleByName("libcronet.so");
         console.log("[+] libcronet.so (Google Cronet) base:", module.base);
         hookNativeSSLExports(module, "libcronet");
 
-        // Cronet-specific exports
         var exports = module.enumerateExports();
         for (var i = 0; i < exports.length; i++) {
             if (exports[i].name.indexOf("CertVerify") !== -1 ||
@@ -2410,19 +2347,16 @@ function hook_libcronet() {
     } catch (e) {}
 }
 
-// -- [NEW] libconscrypt_jni.so hooks (Conscrypt JNI layer) --
+// -- libconscrypt_jni.so hooks (Conscrypt JNI layer) --
 function hook_libconscrypt_jni() {
     try {
-        console.log("Trying libconscrypt_jni")
         var module = Process.getModuleByName("libconscrypt_jni.so");
         console.log("[+] libconscrypt_jni.so base:", module.base);
         hookNativeSSLExports(module, "libconscrypt_jni");
     } catch (e) {}
 }
 
-// -- [NEW] libjavacrypto.so hooks (APEX Conscrypt BoringSSL, Android 12+) --
-// On Android 10+ with APEX, BoringSSL for Conscrypt lives in libjavacrypto.so,
-// not libssl.so. This is the native layer that throws CERTIFICATE_VERIFY_FAILED.
+// -- libjavacrypto.so (APEX Conscrypt BoringSSL, Android 12+) --
 function hook_libjavacrypto() {
     var candidates = [
         'libjavacrypto.so'
@@ -2433,13 +2367,12 @@ function hook_libjavacrypto() {
             console.log('[+] ' + libName + ' (APEX Conscrypt) base:', module.base);
             hookNativeSSLExports(module, libName);
 
-            // Additionally patch SSL_CTX_set_custom_verify to a noop callback
             try {
                 var setCustomVerify = module.findExportByName('SSL_CTX_set_custom_verify');
                 if (setCustomVerify) {
                     Interceptor.attach(setCustomVerify, {
                         onEnter: function (args) {
-                            // Replace the callback with NULL (no verification)
+                            
                             args[1] = ptr(0); // mode = SSL_VERIFY_NONE
                             args[2] = ptr(0); // callback = NULL
                             console.log('[+] ' + libName + ': SSL_CTX_set_custom_verify nulled');
@@ -2447,26 +2380,22 @@ function hook_libjavacrypto() {
                     });
                 }
             } catch (e) {}
-
-
         } catch (e) {}
     });
 }
 
-// -- [NEW] libgmscore.so hooks (Google Play Services core) --
+// -- libgmscore.so hooks (Google Play Services core) --
 function hook_libgmscore() {
     try {
-        console.log("Trying libgmscore")
         var module = Process.getModuleByName("libgmscore.so");
         console.log("[+] libgmscore.so base:", module.base);
         hookNativeSSLExports(module, "libgmscore");
     } catch (e) {}
 }
 
-// -- [NEW] libchromium_net.so hooks (Chromium networking) --
+// -- libchromium_net.so hooks (Chromium networking) --
 function hook_libchromium_net() {
     try {
-        console.log("Trying libchromium_net")
         var module = Process.getModuleByName("libchromium_net.so");
         console.log("[+] libchromium_net.so base:", module.base);
         hookNativeSSLExports(module, "libchromium_net");
@@ -2475,7 +2404,6 @@ function hook_libchromium_net() {
 
 // -- android_dlopen_ext watcher (enhanced) --
 try {
-    console.log("Trying android_dlopen_ext")
     var android_dlopen_ext = Process.getModuleByName("libdl.so").getExportByName("android_dlopen_ext");
     Interceptor.attach(android_dlopen_ext, {
         onEnter: function (args) {
@@ -2493,7 +2421,7 @@ try {
             if (name.indexOf("libsscronet.so") !== -1) { console.log("[+] libsscronet loaded"); hook_libsscronet(); }
             if (name.indexOf("libliger.so") !== -1 || name.indexOf("libliger-native.so") !== -1) { console.log("[+] libliger loaded"); hook_libliger(); }
             if (name.indexOf("libcoldstart.so") !== -1) { console.log("[+] libcoldstart loaded"); hook_libcoldstart(); }
-            // [NEW] Additional library watchers
+            // Additional library watchers
             if (name.indexOf("libcronet.so") !== -1) { console.log("[+] libcronet loaded"); hook_libcronet(); }
             if (name.indexOf("libconscrypt_jni.so") !== -1) { console.log("[+] libconscrypt_jni loaded"); hook_libconscrypt_jni(); }
             if (name.indexOf("libjavacrypto.so") !== -1) { console.log("[+] libjavacrypto loaded"); hook_libjavacrypto(); }
@@ -2505,9 +2433,8 @@ try {
     console.log("[-] Failed to hook android_dlopen_ext:", e);
 }
 
-// -- [NEW] Also hook dlopen for older Android versions --
+// -- Also hook dlopen for older Android versions --
 try {
-    console.log("Trying dlopen")
     var dlopenAddr = Module.findExportByName("libdl.so", "dlopen");
     if (dlopenAddr) {
         Interceptor.attach(dlopenAddr, {
@@ -2538,7 +2465,7 @@ setTimeout(function () {
     try { Process.getModuleByName("libsscronet.so"); hook_libsscronet(); } catch (e) {}
     try { Process.getModuleByName("libliger.so"); hook_libliger(); } catch (e) {}
     try { Process.getModuleByName("libcoldstart.so"); hook_libcoldstart(); } catch (e) {}
-    // [NEW] Check for additional libraries
+    // Check for additional libraries
     try { Process.getModuleByName("libcronet.so"); hook_libcronet(); } catch (e) {}
     try { Process.getModuleByName("libconscrypt_jni.so"); hook_libconscrypt_jni(); } catch (e) {}
     try { Process.getModuleByName("libjavacrypto.so"); hook_libjavacrypto(); } catch (e) {}
@@ -2547,7 +2474,7 @@ setTimeout(function () {
 }, 1000);
 
 // ========================================================================
-// BYPASS FRIDA / XPOSED DETECTION (credit: @x90nopslide)
+// BYPASS FRIDA / XPOSED DETECTION
 // ========================================================================
 
 // Hook fgets to sanitize "frida" and "xposed" strings from /proc reads
@@ -2603,19 +2530,19 @@ try {
     }
 } catch (e) {}
 
-// [NEW] Hook pthread_create to hide Frida agent threads
+// Hook pthread_create to hide Frida agent threads
 try {
     var pthreadCreateAddr = Module.findExportByName("libc.so", "pthread_create");
     if (pthreadCreateAddr) {
         Interceptor.attach(pthreadCreateAddr, {
             onEnter: function (args) {
-                // Monitor thread creation - can be used for debugging
+                
             }
         });
     }
 } catch (e) {}
 
-// [NEW] Hook /proc/self/maps read to hide Frida libraries
+// Hook /proc/self/maps read to hide Frida libraries
 try {
     var openProcMaps = Module.findExportByName("libc.so", "openat");
     if (openProcMaps) {
@@ -2630,7 +2557,7 @@ try {
             },
             onLeave: function (retval) {
                 if (this.isProcMaps) {
-                    // File will be opened but contents will be filtered by fgets hook
+                    
                     this.isProcMaps = false;
                 }
             }
@@ -2640,14 +2567,6 @@ try {
 
 console.log("");
 console.log("======================================================");
-console.log("[+] FRIDA UNIFIED BYPASS v2 LOADED SUCCESSFULLY!");
-console.log("======================================================");
-console.log("[+] New in v2: Fixed SSLContext.init conflict, added");
-console.log("    X509TrustManagerExtensions, ConscryptFileDescriptor,");
-console.log("    AbstractConscryptSocket, NativeCrypto, libcronet,");
-console.log("    libconscrypt_jni, Samsung Knox, Unity, AppsFlyer,");
-console.log("    Firebase, SSL_CTX_set_cert_verify_callback,");
-console.log("    SSLHandshakeException auto-patcher, TrustManager");
-console.log("    scanner, ssl_send_alert suppression, and more.");
+console.log("[+] FRIDA UNIFIED BYPASS LOADED SUCCESSFULLY!");
 console.log("======================================================");
 console.log("");
